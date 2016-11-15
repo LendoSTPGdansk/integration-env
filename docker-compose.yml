@@ -1,0 +1,109 @@
+version: '2'
+
+services:
+  lendogateway:
+    image: matigda/rabbitmq-delayed-message-exchange
+    ports:
+      - 15672:15672
+      - 5672:5672
+
+  eventstorage:
+    image: cassandra:3.7
+    ports:
+      - "9042:9042"
+      - "9160:9160"
+    volumes:
+      - /mnt/sda1/var/lib/integration-env/cassandra-data:/var/lib/cassandra
+    environment:
+      CASSANDRA_CLUSTER_NAME: "Lendo Inegration Environment"
+
+  projectionstorage:
+    image: elasticsearch:2.4
+    volumes:
+      - /mnt/sda1/var/lib/integration-env/elastic-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+  user_service:
+    container_name: user_service
+    build: src/user-service
+    entrypoint:
+      sh /entrypoint.sh person_verified credit_check_finished user_info_outdated user_not_found
+    volumes:
+      - ./src/user-service/lendo-user-service:/var/www/lendo-user-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9011:8000"
+
+  credit_data_service:
+    container_name: credit_data_service
+    build: src/credit-data-service
+    entrypoint: sh /entrypoint.sh
+    volumes:
+      - ./src/credit-data-service/lendo-credit-data-service:/var/www/lendo-credit-data-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9012:8000"
+
+  pep_service:
+    container_name: pep_service
+    build: src/pep-service
+    entrypoint:
+      sh /entrypoint.sh user_created
+    volumes:
+      - ./src/pep-service/lendo-pep-service:/var/www/lendo-pep-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9013:8000"
+
+  application_handler_service:
+    container_name: application_handler_service
+    build: src/application-handler-service
+    entrypoint:
+      sh /entrypoint.sh user_created user_updated person_is_risky person_is_sanctioned dead_letter
+    volumes:
+      - ./src/application-handler-service/lendo-application-handler-service:/var/www/lendo-application-handler-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9014:8000"
+
+  sms_service:
+    container_name: sms_service
+    build: src/sms-service
+    entrypoint: sh /entrypoint.sh
+    volumes:
+      - ./src/sms-service/lendo-sms-service:/var/www/lendo-sms-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9015:8000"
+
+  point_service:
+    container_name: point_service
+    build: src/point-service
+    entrypoint: sh /entrypoint.sh
+    volumes:
+      - ./src/point-service/lendo-point-service:/var/www/lendo-point-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9016:8000"
+
+  mail_service:
+    container_name: mail_service
+    build: src/mail-service
+    entrypoint: sh /entrypoint.sh
+    volumes:
+      - ./src/mail-service/lendo-mail-service:/var/www/lendo-mail-service
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9017:8000"
+
+  message_dispatcher:
+    container_name: message_dispatcher
+    build: src/message-dispatcher
+    entrypoint: sh /entrypoint.sh
+    volumes:
+      - ./src/message-dispatcher/lendo-message-dispatcher:/var/www/lendo-message-dispatcher
+      - ./entrypoint.sh:/entrypoint.sh
+    ports:
+      - "9018:8000"
