@@ -1,109 +1,233 @@
-version: '2'
+version: '3'
 
 services:
   lendogateway:
-    image: matigda/rabbitmq-delayed-message-exchange
+    image: tetsuobe/rabbitmq-delayed-message-exchange
+    networks:
+      - integration
     ports:
       - 15672:15672
       - 5672:5672
 
   eventstorage:
-    image: cassandra:3.7
+    image: cassandra:3.9
+    networks:
+      - integration
     ports:
       - "9042:9042"
       - "9160:9160"
     volumes:
       - /mnt/sda1/var/lib/integration-env/cassandra-data:/var/lib/cassandra
     environment:
-      CASSANDRA_CLUSTER_NAME: "Lendo Inegration Environment"
+      CASSANDRA_CLUSTER_NAME: "Lendo Integration Environment"
 
   projectionstorage:
     image: elasticsearch:2.4
     volumes:
       - /mnt/sda1/var/lib/integration-env/elastic-data:/usr/share/elasticsearch/data
+    networks:
+      - integration
     ports:
       - "9200:9200"
       - "9300:9300"
 
   user_service:
     container_name: user_service
-    build: src/user-service
+    build: ${USER_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint:
-      sh /entrypoint.sh person_verified credit_check_finished user_info_outdated user_not_found
+      sh /entrypoint.sh person_check_outdated person_check_finished credit_check_outdated contact_info_outdated user_not_found user_found
     volumes:
-      - ./src/user-service/lendo-user-service:/var/www/lendo-user-service
+      - ${USER_SERVICE_VOLUME}/lendo-user-service:/var/www/lendo-user-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9011:8000"
 
   credit_data_service:
     container_name: credit_data_service
-    build: src/credit-data-service
+    build: ${CREDIT_DATA_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint: sh /entrypoint.sh
     volumes:
-      - ./src/credit-data-service/lendo-credit-data-service:/var/www/lendo-credit-data-service
+      - ${CREDIT_DATA_SERVICE_VOLUME}/lendo-credit-data-service:/var/www/lendo-credit-data-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9012:8000"
 
   pep_service:
     container_name: pep_service
-    build: src/pep-service
+    build: ${PEP_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint:
-      sh /entrypoint.sh user_created
+      sh /entrypoint.sh
     volumes:
-      - ./src/pep-service/lendo-pep-service:/var/www/lendo-pep-service
+      - ${PEP_SERVICE_VOLUME}/lendo-pep-service:/var/www/lendo-pep-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9013:8000"
 
   application_handler_service:
     container_name: application_handler_service
-    build: src/application-handler-service
+    build: ${APPLICATION_HANDLER_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint:
-      sh /entrypoint.sh user_created user_updated person_is_risky person_is_sanctioned dead_letter
+      sh /entrypoint.sh user_created user_ready person_is_risky person_is_sanctioned application_request_created applicant_identification_not_found dead_letter
     volumes:
-      - ./src/application-handler-service/lendo-application-handler-service:/var/www/lendo-application-handler-service
+      - ${APPLICATION_HANDLER_SERVICE_VOLUME}/lendo-application-handler-service:/var/www/lendo-application-handler-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9014:8000"
 
   sms_service:
     container_name: sms_service
-    build: src/sms-service
+    build: ${SMS_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint: sh /entrypoint.sh
     volumes:
-      - ./src/sms-service/lendo-sms-service:/var/www/lendo-sms-service
+      - ${SMS_SERVICE_VOLUME}/lendo-sms-service:/var/www/lendo-sms-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9015:8000"
 
   point_service:
     container_name: point_service
-    build: src/point-service
+    build: ${POINT_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint: sh /entrypoint.sh
     volumes:
-      - ./src/point-service/lendo-point-service:/var/www/lendo-point-service
+      - ${POINT_SERVICE_VOLUME}/lendo-point-service:/var/www/lendo-point-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9016:8000"
 
   mail_service:
     container_name: mail_service
-    build: src/mail-service
+    build: ${MAIL_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint: sh /entrypoint.sh
     volumes:
-      - ./src/mail-service/lendo-mail-service:/var/www/lendo-mail-service
+      - ${MAIL_SERVICE_VOLUME}/lendo-mail-service:/var/www/lendo-mail-service
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9017:8000"
 
   message_dispatcher:
     container_name: message_dispatcher
-    build: src/message-dispatcher
+    build: ${MESSAGE_DISPATCHER_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
     entrypoint: sh /entrypoint.sh
     volumes:
-      - ./src/message-dispatcher/lendo-message-dispatcher:/var/www/lendo-message-dispatcher
+      - ${MESSAGE_DISPATCHER_VOLUME}/lendo-message-dispatcher:/var/www/lendo-message-dispatcher
       - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
     ports:
       - "9018:8000"
+
+  application_service:
+    container_name: application_service
+    build: ${APPLICATION_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
+    entrypoint:
+      sh /entrypoint.sh application_handling_process_finished
+    volumes:
+      - ${APPLICATION_SERVICE_VOLUME}/lendo-application-service:/var/www/lendo-application-service
+      - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
+    ports:
+      - "9019:8000"
+
+  integration_response_service:
+    container_name: integration_response_service
+    build: ${INTEGRATION_RESPONSE_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
+    entrypoint:
+      sh /entrypoint.sh upsell_product_filter_done
+    volumes:
+      - ${INTEGRATION_RESPONSE_SERVICE_VOLUME}/lendo-integration-response-service:/var/www/lendo-integration-response-service
+      - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
+    ports:
+      - "9020:8000"
+
+  partner_service:
+    container_name: partner_service
+    build: ${PARTNER_SERVICE_SOURCE}
+    depends_on:
+      - eventstorage
+      - projectionstorage
+      - lendogateway
+    entrypoint:
+      sh /entrypoint.sh
+    volumes:
+      - ${PARTNER_SERVICE_VOLUME}/lendo-partner-service:/var/www/lendo-partner-service
+      - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
+    ports:
+      - "9021:8000"
+
+  tracking_service:
+    container_name: tracking_service
+    build: ${TRACKING_SERVICE_SOURCE}
+    depends_on:
+      - projectionstorage
+      - lendogateway
+    entrypoint:
+      sh /entrypoint.sh application_saved
+    volumes:
+      - ${TRACKING_SERVICE_VOLUME}/lendo-tracking-service:/var/www/lendo-tracking-service
+      - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - integration
+    ports:
+      - "9022:8000"
+
+networks:
+  integration:

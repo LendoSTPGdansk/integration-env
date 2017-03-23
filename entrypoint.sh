@@ -6,4 +6,4 @@ do
 php bin/console rabbitmq:multiple-consumer $i -w &
 done
 
-php bin/console server:start 0.0.0.0
+php bin/console server:start 0.0.0.0:8000
